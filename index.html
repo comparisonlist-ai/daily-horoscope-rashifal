@@ -1,1 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Astroseek - Daily Horoscope</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#d97706">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f9;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    h1 {
+      color: #1e293b;
+      font-size: 22px;
+      margin: 0;
+    }
+    .search-box {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 25px;
+    }
+    .search-box input {
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      flex-grow: 1;
+    }
+    #result-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 15px;
+    }
+    .rashi-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 15px;
+    }
+    .rashi-card h3 {
+      color: #d97706;
+      margin-top: 0;
+      font-size: 18px;
+    }
+    .rashi-card p {
+      margin: 6px 0;
+      color: #475569;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .loading {
+      grid-column: 1 / -1;
+      text-align: center;
+      color: #64748b;
+      padding: 30px;
+    }
+  </style>
+</head>
+<body>
 
+  <div class="container">
+    <div class="header-row">
+      <h1>Astroseek Horoscope</h1>
+    </div>
+
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Search Rashi (e.g. Aries, Mesh)..." onkeyup="filterHoroscope()">
+    </div>
+
+    <div id="result-container">
+      <div class="loading">Loading horoscope data...</div>
+    </div>
+  </div>
+
+  <script>
+    const WORKER_URL = "https://daily-rashifal-app.comparisonlist.workers.dev";
+    let allData = [];
+
+    async function loadData() {
+      try {
+        const response = await fetch(WORKER_URL);
+        const result = await response.json();
+        if (result.success && result.data && result.data.rashifal) {
+          allData = result.data.rashifal;
+          renderCards(allData);
+        } else {
+          document.getElementById("result-container").innerHTML = "<div class='loading'>Failed to load predictions.</div>";
+        }
+      } catch (err) {
+        document.getElementById("result-container").innerHTML = "<div class='loading'>Connection error.</div>";
+      }
+    }
+
+    function renderCards(dataList) {
+      let html = "";
+      dataList.forEach(item => {
+        html += `
+          <div class="rashi-card">
+            <h3>${item.rashi_en} (${item.rashi_hi})</h3>
+            <p><strong>Overall:</strong> ${item.predictions_hi.overall}</p>
+            <p><strong>Career:</strong> ${item.predictions_hi.career}</p>
+            <p><strong>Lucky Number:</strong> ${item.lucky.number}</p>
+          </div>
+        `;
+      });
+      document.getElementById("result-container").innerHTML = html;
+    }
+
+    function filterHoroscope() {
+      const query = document.getElementById("searchInput").value.toLowerCase().trim();
+      if (!query) {
+        renderCards(allData);
+        return;
+      }
+      const filtered = allData.filter(item => 
+        item.rashi_en.toLowerCase().includes(query) || 
+        item.rashi_hi.toLowerCase().includes(query)
+      );
+      renderCards(filtered.length > 0 ? filtered : allData);
+    }
+
+    loadData();
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.service.worker.js');
+    }
+  </script>
+</body>
+</html>
