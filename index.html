@@ -96,28 +96,56 @@
 
     async function loadData() {
       try {
-        const response = await fetch(WORKER_URL);
+        const response = await fetch(WORKER_URL, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Server returned status ${response.status}`);
+        }
+
         const result = await response.json();
-        if (result.success && result.data && result.data.rashifal) {
+        
+        // Supports both array responses or wrapped JSON objects
+        if (Array.isArray(result)) {
+          allData = result;
+        } else if (result.success && result.data && Array.isArray(result.data.rashifal)) {
           allData = result.data.rashifal;
+        } else if (result.rashifal && Array.isArray(result.rashifal)) {
+          allData = result.rashifal;
+        } else {
+          throw new Error("Invalid data format received from worker");
+        }
+
+        if (allData.length > 0) {
           renderCards(allData);
         } else {
-          document.getElementById("result-container").innerHTML = "<div class='loading'>Failed to load predictions.</div>";
+          document.getElementById("result-container").innerHTML = "<div class='loading'>No horoscope records found.</div>";
         }
       } catch (err) {
-        document.getElementById("result-container").innerHTML = "<div class='loading'>Connection error.</div>";
+        console.error("Fetch error:", err);
+        document.getElementById("result-container").innerHTML = "<div class='loading'>Unable to load predictions right now. Please check your connection.</div>";
       }
     }
 
     function renderCards(dataList) {
       let html = "";
       dataList.forEach(item => {
+        const rashiEn = item.rashi_en || item.name || 'Zodiac';
+        const rashiHi = item.rashi_hi || item.local_name || '';
+        const overall = item.predictions_hi?.overall || item.overall || item.description || 'Details unavailable.';
+        const career = item.predictions_hi?.career || item.career || '';
+        const luckyNum = item.lucky?.number || item.lucky_number || 'N/A';
+
         html += `
           <div class="rashi-card">
-            <h3>${item.rashi_en} (${item.rashi_hi})</h3>
-            <p><strong>Overall:</strong> ${item.predictions_hi.overall}</p>
-            <p><strong>Career:</strong> ${item.predictions_hi.career}</p>
-            <p><strong>Lucky Number:</strong> ${item.lucky.number}</p>
+            <h3>${rashiEn} ${rashiHi ? `(${rashiHi})` : ''}</h3>
+            <p><strong>Overall:</strong> ${overall}</p>
+            ${career ? `<p><strong>Career:</strong> ${career}</p>` : ''}
+            <p><strong>Lucky Number:</strong> ${luckyNum}</p>
           </div>
         `;
       });
@@ -130,17 +158,22 @@
         renderCards(allData);
         return;
       }
-      const filtered = allData.filter(item => 
-        item.rashi_en.toLowerCase().includes(query) || 
-        item.rashi_hi.toLowerCase().includes(query)
-      );
-      renderCards(filtered.length > 0 ? filtered : allData);
+      const filtered = allData.filter(item => {
+        const en = (item.rashi_en || '').toLowerCase();
+        const hi = (item.rashi_hi || '').toLowerCase();
+        return en.includes(query) || hi.includes(query);
+      });
+      renderCards(filtered);
     }
 
+    // Load data on page launch
     loadData();
 
+    // Register Service Worker matching your repository file structure
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.service.worker.js');
+      navigator.serviceWorker.register('/sw.service.worker.js')
+        .then(() => console.log('Service worker registered successfully'))
+        .catch(err => console.log('Service worker registration failed:', err));
     }
   </script>
 </body>
