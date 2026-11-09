@@ -109,15 +109,19 @@
 
         const result = await response.json();
         
-        // Supports both array responses or wrapped JSON objects
+        // Handles Graha API standard structures alongside existing Worker outputs
         if (Array.isArray(result)) {
           allData = result;
-        } else if (result.success && result.data && Array.isArray(result.data.rashifal)) {
+        } else if (result.response && Array.isArray(result.response)) {
+          allData = result.response;
+        } else if (result.data && Array.isArray(result.data)) {
+          allData = result.data;
+        } else if (result.data && Array.isArray(result.data.rashifal)) {
           allData = result.data.rashifal;
         } else if (result.rashifal && Array.isArray(result.rashifal)) {
           allData = result.rashifal;
         } else {
-          throw new Error("Invalid data format received from worker");
+          throw new Error("Invalid data format received from endpoint");
         }
 
         if (allData.length > 0) {
@@ -134,18 +138,21 @@
     function renderCards(dataList) {
       let html = "";
       dataList.forEach(item => {
-        const rashiEn = item.rashi_en || item.name || 'Zodiac';
-        const rashiHi = item.rashi_hi || item.local_name || '';
-        const overall = item.predictions_hi?.overall || item.overall || item.description || 'Details unavailable.';
-        const career = item.predictions_hi?.career || item.career || '';
-        const luckyNum = item.lucky?.number || item.lucky_number || 'N/A';
+        // Safe mapping across Graha API keys and fallback properties
+        const rashiEn = item.sign || item.rashi_en || item.name || 'Zodiac';
+        const rashiHi = item.rashi_hi || item.local_name || item.hindi_name || '';
+        const overall = item.prediction || item.predictions_hi?.overall || item.overall || item.description || 'Details unavailable.';
+        const career = item.career || item.predictions_hi?.career || '';
+        const luckyNum = item.lucky_number || item.lucky?.number || 'N/A';
+        const luckyColor = item.lucky_color || item.lucky?.color || '';
 
         html += `
           <div class="rashi-card">
             <h3>${rashiEn} ${rashiHi ? `(${rashiHi})` : ''}</h3>
-            <p><strong>Overall:</strong> ${overall}</p>
+            <p><strong>Prediction:</strong> ${overall}</p>
             ${career ? `<p><strong>Career:</strong> ${career}</p>` : ''}
             <p><strong>Lucky Number:</strong> ${luckyNum}</p>
+            ${luckyColor ? `<p><strong>Lucky Color:</strong> ${luckyColor}</p>` : ''}
           </div>
         `;
       });
@@ -159,8 +166,8 @@
         return;
       }
       const filtered = allData.filter(item => {
-        const en = (item.rashi_en || '').toLowerCase();
-        const hi = (item.rashi_hi || '').toLowerCase();
+        const en = (item.sign || item.rashi_en || item.name || '').toLowerCase();
+        const hi = (item.rashi_hi || item.local_name || item.hindi_name || '').toLowerCase();
         return en.includes(query) || hi.includes(query);
       });
       renderCards(filtered);
